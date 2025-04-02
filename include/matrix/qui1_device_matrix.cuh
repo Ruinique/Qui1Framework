@@ -1,12 +1,12 @@
-#ifndef QUI1_HOST_MATRIX_CUH
-#define QUI1_HOST_MATRIX_CUH
+#ifndef QUI1_DEVICE_MATRIX_CUH
+#define QUI1_DEVICE_MATRIX_CUH
 
 #include <cuda_runtime.h>
 
-#include <cstddef>
+#include <cstddef> // for size_t
 #include <optional>
 #include <stdexcept>
-#include <utility>
+#include <utility> // for std::move
 
 #include "../common/error_check.cuh"
 #include "fmt/format.h"
@@ -14,15 +14,15 @@
 
 namespace qui1 {
 template <typename T>
-class HostMatrix : public MatrixBase<T> {
+class DeviceMatrix : public MatrixBase<T> {
    public:
-    // 默认构造函数，提供一个空的 HostMatrix 对象
-    HostMatrix()
+    // 默认构造函数，提供一个空的 DeviceMatrix 对象
+    DeviceMatrix()
         : data_(nullptr), rows_(0), cols_(0), layout_(qui1::Layout::COLUMN_MAJOR) {}
 
     // 有参构造函数，默认构造一个列优先的 rows * cols 大小的矩阵
-    HostMatrix(size_t rows, size_t cols,
-               qui1::Layout layout = qui1::Layout::COLUMN_MAJOR) {
+    DeviceMatrix(size_t rows, size_t cols,
+                 qui1::Layout layout = qui1::Layout::COLUMN_MAJOR) {
         if ((rows == 0 && cols != 0) || (rows != 0 && cols == 0)) {
             throw std::invalid_argument(fmt::format(
                 "rows = {} and cols = {} must be both non-zero", rows, cols));
@@ -32,7 +32,7 @@ class HostMatrix : public MatrixBase<T> {
     }
 
     // 虚析构函数，确保派生类正确释放资源
-    ~HostMatrix() { clear(); }
+    ~DeviceMatrix() { clear(); }
 
     // getter
     size_t getRows() const override { return rows_; }
@@ -45,12 +45,12 @@ class HostMatrix : public MatrixBase<T> {
     bool hasData() const override { return data_ != nullptr; }
 
     auto getLocation() const -> qui1::Location override {
-        return qui1::Location::HOST;
+        return qui1::Location::DEVICE;
     }
 
     void clear() {
         if (data_ != nullptr) {
-            CUDA_CHECK(cudaFreeHost(data_));
+            CUDA_CHECK(cudaFree(data_)); // 使用 cudaFree
             data_ = nullptr;
         }
         rows_ = 0;
@@ -58,12 +58,12 @@ class HostMatrix : public MatrixBase<T> {
     }
 
     // 删除拷贝构造函数，禁止拷贝
-    HostMatrix(const HostMatrix&) = delete;
+    DeviceMatrix(const DeviceMatrix&) = delete;
     // 删除拷贝赋值运算符，禁止拷贝
-    HostMatrix& operator=(const HostMatrix&) = delete;
+    DeviceMatrix& operator=(const DeviceMatrix&) = delete;
 
     // 移动构造函数
-    HostMatrix(HostMatrix&& other) noexcept
+    DeviceMatrix(DeviceMatrix&& other) noexcept
         : data_(other.data_),
           rows_(other.rows_),
           cols_(other.cols_),
@@ -75,7 +75,7 @@ class HostMatrix : public MatrixBase<T> {
     }
 
     // 移动赋值运算符
-    HostMatrix& operator=(HostMatrix&& other) noexcept {
+    DeviceMatrix& operator=(DeviceMatrix&& other) noexcept {
         if (this != &other) {
             // 释放当前对象的资源
             clear();
@@ -115,10 +115,11 @@ class HostMatrix : public MatrixBase<T> {
     void allocate(size_t r, size_t c, qui1::Layout layout) {
         rows_ = r;
         cols_ = c;
-        CUDA_CHECK(cudaMallocHost(reinterpret_cast<void**>(&data_),
-                                  rows_ * cols_ * sizeof(T)));
+        // 使用 cudaMalloc 分配设备内存
+        CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&data_),
+                               rows_ * cols_ * sizeof(T)));
         layout_ = layout;
     }
 };
-}  // namespace qui1
-#endif
+} // namespace qui1
+#endif // QUI1_DEVICE_MATRIX_CUH
