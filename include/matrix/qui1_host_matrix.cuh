@@ -11,6 +11,7 @@
 #include "../common/error_check.cuh"
 #include "fmt/format.h"
 #include "qui1_matrix_base.cuh"
+#include "matrix/view/qui1_host_matrix_view.cuh"
 
 namespace qui1 {
 template <typename T>
@@ -43,6 +44,14 @@ class HostMatrix : public MatrixBase<T> {
     // 返回 const 指针，用于 const 对象
     const T* getData() const override { return data_; }
     bool hasData() const override { return data_ != nullptr; }
+
+    auto getView() -> HostMatrixView<T> {
+        return HostMatrixView<T>(data_, rows_, cols_, layout_);
+    }
+    
+    auto getView() const -> HostMatrixView<const T> {
+        return HostMatrixView<const T>(data_, rows_, cols_, layout_);
+    }
 
     auto getLocation() const -> qui1::Location override {
         return qui1::Location::HOST;

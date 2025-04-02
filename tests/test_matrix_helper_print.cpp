@@ -6,6 +6,8 @@
 #include "matrix/qui1_device_matrix.cuh"
 #include "matrix/qui1_host_matrix.cuh"
 #include "matrix/qui1_matrix_helper.cuh"
+#include "matrix/view/qui1_host_matrix_view.cuh"
+#include "matrix/view/qui1_device_matrix_view.cuh"
 
 // Test fixture for MatrixHelper print tests
 class MatrixHelperPrintTest : public ::testing::Test {
@@ -83,4 +85,11 @@ TEST_F(MatrixHelperPrintTest, PrintDifferentLayouts) {
     qui1::DeviceMatrix<DataType> device_cm_matrix(rows, cols, qui1::Layout::COLUMN_MAJOR);
     CUDA_CHECK(cudaMemcpy(device_cm_matrix.getData(), data_cm.data(), data_cm.size() * sizeof(DataType), cudaMemcpyHostToDevice));
     EXPECT_NO_THROW(qui1::MatrixHelper::printMatrix(device_cm_matrix, "Column Major Device"));
+}
+
+TEST_F(MatrixHelperPrintTest, PrintMatrixViews) {
+    // Row Major
+    qui1::HostMatrix<DataType> row_major_matrix(rows, cols, qui1::Layout::ROW_MAJOR);
+    std::vector<DataType> data_rm = {1, 2, 3, 4, 5, 6};
+    std::copy(data_rm.begin(), data_rm.end(), row_major_matrix.getData());
 }

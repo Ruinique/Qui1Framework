@@ -14,6 +14,7 @@
 #include "qui1_device_matrix.cuh"
 #include "qui1_host_matrix.cuh"
 #include "qui1_matrix_base.cuh"
+#include "matrix/view/qui1_matrix_view_base.cuh"
 
 namespace qui1 {
 
@@ -33,36 +34,48 @@ class MatrixHelper {
         const auto rows = matrix.getRows();
         const auto cols = matrix.getCols();
         const auto num_elements = rows * cols;
+        
+        // 检查是否是视图类型
+        const auto* view_ptr = dynamic_cast<const MatrixViewBase<T>*>(&matrix);
+        const size_t lda = view_ptr ? view_ptr->getLDA() : 
+            (matrix.getLayout() == Layout::ROW_MAJOR ? cols : rows);
+        const size_t offset = view_ptr ? view_ptr->getOffset() : 0;
+
         fmt::print("{}:\n", title);
         fmt::print("  Location: {}\n",
                    matrix.getLocation() == Location::HOST ? "Host" : "Device");
         fmt::print("  Dimensions: {}x{}\n", rows, cols);
         fmt::print("  Layout: {}\n",
-                   matrix.getLayout() == Layout::ROW_MAJOR ? "RowMajor"
-                                                            : "ColumnMajor");
+                   matrix.getLayout() == Layout::ROW_MAJOR ? "RowMajor" : "ColumnMajor");
+        if (view_ptr) {
+            fmt::print("  LDA: {}\n", lda);
+            fmt::print("  Offset: {}\n", offset);
+        }
         fmt::print("  Data:\n");
 
-        // Prepare data for printing (copy from device if necessary)
-        std::vector<T> host_data(num_elements);
+        // 准备打印数据（考虑视图的LDA）
+        const size_t buffer_size = matrix.getLayout() == Layout::ROW_MAJOR ? 
+            rows * lda : cols * lda;
+        std::vector<T> host_data(buffer_size);
         const T* data_ptr = nullptr;
 
         if (matrix.getLocation() == Location::DEVICE) {
             CUDA_CHECK(cudaMemcpy(host_data.data(), matrix.getData(),
-                                  num_elements * sizeof(T),
+                                  buffer_size * sizeof(T),
                                   cudaMemcpyDeviceToHost));
             data_ptr = host_data.data();
         } else {
-            data_ptr = matrix.getData(); // Directly use host data
+            data_ptr = matrix.getData(); // 直接使用主机数据
         }
 
-        // Print the matrix data using fmt
+        // 使用LDA打印矩阵数据
         for (size_t i = 0; i < rows; ++i) {
             fmt::print("    [");
             for (size_t j = 0; j < cols; ++j) {
-                // Calculate index based on layout
+                // 根据布局和LDA计算索引
                 size_t index = (matrix.getLayout() == Layout::ROW_MAJOR)
-                                   ? (i * cols + j)
-                                   : (j * rows + i);
+                                   ? (i * lda + j)
+                                   : (j * lda + i);
                 fmt::print("{}{}", data_ptr[index], (j == cols - 1) ? "" : ", ");
             }
             fmt::print("]\n");
