@@ -37,7 +37,7 @@ public:
 
     // 覆盖基类的leading dimension计算
     size_t getLeadingDimension() const override {
-        return lda_; // 直接返回指定的leading dimension
+        return lda_;
     }
 
 private:

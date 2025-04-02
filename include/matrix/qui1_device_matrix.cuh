@@ -3,15 +3,15 @@
 
 #include <cuda_runtime.h>
 
-#include <cstddef> // for size_t
+#include <cstddef>  // for size_t
 #include <optional>
 #include <stdexcept>
-#include <utility> // for std::move
+#include <utility>  // for std::move
 
 #include "../common/error_check.cuh"
 #include "fmt/format.h"
-#include "qui1_matrix_base.cuh"
 #include "matrix/view/qui1_device_matrix_view.cuh"
+#include "qui1_matrix_base.cuh"
 
 namespace qui1 {
 template <typename T>
@@ -38,6 +38,9 @@ class DeviceMatrix : public MatrixBase<T> {
     // getter
     size_t getRows() const override { return rows_; }
     size_t getCols() const override { return cols_; }
+    size_t getLeadingDimension() const override {
+        return layout_ == qui1::Layout::COLUMN_MAJOR ? rows_ : cols_;
+    }
     qui1::Layout getLayout() const override { return layout_; }
     // 返回非 const 指针，允许修改数据
     T* getData() override { return data_; }
@@ -45,12 +48,20 @@ class DeviceMatrix : public MatrixBase<T> {
     const T* getData() const override { return data_; }
     bool hasData() const override { return data_ != nullptr; }
 
-    auto getView() -> DeviceMatrixView<T> {
-        return DeviceMatrixView<T>(data_, rows_, cols_, layout_);
-    }
-    
-    auto getView() const -> DeviceMatrixView<const T> {
-        return DeviceMatrixView<const T>(data_, rows_, cols_, layout_);
+    auto getView(size_t r, size_t c, size_t offset_m = 0, size_t offset_n = 0,
+                 size_t ld = 0) -> DeviceMatrixView<T> {
+        if (ld == 0) {
+            ld = getLeadingDimension();
+        }
+        if (layout_ == Layout::COLUMN_MAJOR) {
+            return DeviceMatrixView<T>(data_, r, c, layout_, ld,
+                                       offset_n * ld + offset_m);
+        }
+        if (layout_ == Layout::ROW_MAJOR) {
+            return DeviceMatrixView<T>(data_, r, c, layout_, ld,
+                                       offset_m * ld + offset_n);
+        }
+        throw std::invalid_argument(fmt::format("get view failed"));
     }
 
     auto getLocation() const -> qui1::Location override {
@@ -59,7 +70,7 @@ class DeviceMatrix : public MatrixBase<T> {
 
     void clear() {
         if (data_ != nullptr) {
-            CUDA_CHECK(cudaFree(data_)); // 使用 cudaFree
+            CUDA_CHECK(cudaFree(data_));  // 使用 cudaFree
             data_ = nullptr;
         }
         rows_ = 0;
@@ -125,10 +136,10 @@ class DeviceMatrix : public MatrixBase<T> {
         rows_ = r;
         cols_ = c;
         // 使用 cudaMalloc 分配设备内存
-        CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&data_),
-                               rows_ * cols_ * sizeof(T)));
+        CUDA_CHECK(
+            cudaMalloc(reinterpret_cast<void**>(&data_), rows_ * cols_ * sizeof(T)));
         layout_ = layout;
     }
 };
-} // namespace qui1
-#endif // QUI1_DEVICE_MATRIX_CUH
+}  // namespace qui1
+#endif  // QUI1_DEVICE_MATRIX_CUH
