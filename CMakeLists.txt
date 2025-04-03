@@ -60,6 +60,12 @@ target_include_directories(test_matrix_helper_print PRIVATE ${CUDAToolkit_INCLUD
 target_link_libraries(test_matrix_helper_print PRIVATE fmt::fmt GTest::gtest_main CUDA::cudart CUDA::curand)
 add_test(NAME TestMatrixHelperPrint COMMAND test_matrix_helper_print)
 
+add_executable(test_gemm_wrapper tests/test_gemm_wrapper.cpp)
+# Explicitly add CUDA include directories for the C++ compiler
+target_include_directories(test_gemm_wrapper PRIVATE ${CUDAToolkit_INCLUDE_DIRS})
+target_link_libraries(test_gemm_wrapper PRIVATE fmt::fmt GTest::gtest_main CUDA::cudart CUDA::curand CUDA::cublas)
+add_test(NAME TestGemmWrapper COMMAND test_gemm_wrapper)
+
 
 # --- CUDA Check (Optional, informational) ---
 find_package(CUDAToolkit)
