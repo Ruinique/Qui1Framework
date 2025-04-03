@@ -138,33 +138,6 @@ class MatrixHelper {
             throw std::runtime_error(
                 "Matrix must be allocated before filling with random numbers.");
         }
-
-        // 注意：fillWithRandom 目前不支持直接填充非连续的视图
-        // 如果 matrix 是一个视图，这里的实现可能需要调整，
-        // 例如，创建一个临时的连续 DeviceMatrix，填充它，然后用 cudaMemcpy2D 复制回视图。
-        // 或者，如果 cuRAND 支持带 pitch 的生成，可以直接在视图上操作。
-        // 当前实现假设 matrix 是一个完整的（非视图）矩阵，或者视图恰好是连续的。
-        const auto* view_ptr = dynamic_cast<const MatrixViewBase<T>*>(&matrix);
-        if (view_ptr) {
-             // 检查视图是否连续，如果不连续，当前 fillWithRandom 可能行为不正确
-             const auto rows = matrix.getRows();
-             const auto cols = matrix.getCols();
-             const auto lda = view_ptr->getLDA();
-             const bool is_contiguous = (matrix.getLayout() == Layout::ROW_MAJOR && lda == cols) ||
-                                        (matrix.getLayout() == Layout::COLUMN_MAJOR && lda == rows);
-             if (!is_contiguous) {
-                 // 可以选择抛出异常或打印警告
-                 fmt::print(stderr, "Warning: fillWithRandom called on a non-contiguous device view. "
-                                    "The behavior might be incorrect as cuRAND typically operates on contiguous memory blocks.\n");
-                 // 或者抛出异常:
-                 // throw std::runtime_error("fillWithRandom on non-contiguous device views is not directly supported by this implementation.");
-             }
-             // 即使连续，getData() 返回的指针可能带有 offset，cuRAND 可能需要从 0 开始的指针。
-             // 这是一个复杂的问题，取决于 cuRAND API 的具体行为。
-             // 最安全的做法可能是创建一个临时的连续 DeviceMatrix。
-        }
-
-
         const auto rows = matrix.getRows();
         const auto cols = matrix.getCols();
         const auto num_elements = rows * cols;
