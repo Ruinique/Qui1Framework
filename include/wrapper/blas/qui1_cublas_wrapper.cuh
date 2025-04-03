@@ -1,5 +1,5 @@
-#ifndef QUI1_GEMM_WRAPPER_H
-#define QUI1_GEMM_WRAPPER_H
+#ifndef QUI1_CUBLAS_WRAPPER_H
+#define QUI1_CUBLAS_WRAPPER_H
 
 #include <cublas_v2.h>
 #include <cuda_runtime.h>
@@ -13,24 +13,24 @@
 
 namespace qui1 {
 
-class GemmWrapper {
+class CublasWrapper {
    public:
     // 默认构造函数，初始化 cuBLAS 句柄
-    GemmWrapper() { CUBLAS_CHECK(cublasCreate(&handle_)); }
+    CublasWrapper() { CUBLAS_CHECK(cublasCreate(&handle_)); }
 
     // 禁止拷贝构造函数
-    GemmWrapper(const GemmWrapper&) = delete;
+    CublasWrapper(const CublasWrapper&) = delete;
 
     // 禁止拷贝赋值运算符
-    GemmWrapper& operator=(const GemmWrapper&) = delete;
+    CublasWrapper& operator=(const CublasWrapper&) = delete;
 
     // 移动构造函数，转移句柄所有权
-    GemmWrapper(GemmWrapper&& other) noexcept : handle_(other.handle_) {
+    CublasWrapper(CublasWrapper&& other) noexcept : handle_(other.handle_) {
         other.handle_ = nullptr;
     }
 
     // 移动赋值运算符，转移句柄所有权
-    GemmWrapper& operator=(GemmWrapper&& other) noexcept {
+    CublasWrapper& operator=(CublasWrapper&& other) noexcept {
         if (this != &other) {
             cleanup();
             handle_ = other.handle_;
@@ -40,7 +40,7 @@ class GemmWrapper {
     }
 
     // 析构函数，销毁 cuBLAS 句柄
-    ~GemmWrapper() { cleanup(); }
+    ~CublasWrapper() { cleanup(); }
 
     template <typename T>
     void gemm(DeviceMatrixView<T>& A, DeviceMatrixView<T>& B,
@@ -69,20 +69,27 @@ class GemmWrapper {
         }
 
         if constexpr (std::is_same_v<T, float>) {
-            CUBLAS_CHECK(cublasSgemm_v2(
-                handle_, transa, transb, static_cast<int>(m), static_cast<int>(n),
-                static_cast<int>(k), &alpha, A.getData(), static_cast<int>(A.getLDA()),
-                B.getData(), static_cast<int>(B.getLDA()), &beta, C.getData(),
-                static_cast<int>(C.getLDA())));
+            CUBLAS_CHECK(cublasSgemm_v2(handle_, transa, transb, static_cast<int>(m),
+                                        static_cast<int>(n), static_cast<int>(k),
+                                        &alpha, A.getData(),
+                                        static_cast<int>(A.getLDA()), B.getData(),
+                                        static_cast<int>(B.getLDA()), &beta,
+                                        C.getData(), static_cast<int>(C.getLDA())));
         } else if constexpr (std::is_same_v<T, double>) {
-            CUBLAS_CHECK(cublasDgemm_v2(
-                handle_, transa, transb, static_cast<int>(m), static_cast<int>(n),
-                static_cast<int>(k), &alpha, A.getData(), static_cast<int>(A.getLDA()),
-                B.getData(), static_cast<int>(B.getLDA()), &beta, C.getData(),
-                static_cast<int>(C.getLDA())));
+            CUBLAS_CHECK(cublasDgemm_v2(handle_, transa, transb, static_cast<int>(m),
+                                        static_cast<int>(n), static_cast<int>(k),
+                                        &alpha, A.getData(),
+                                        static_cast<int>(A.getLDA()), B.getData(),
+                                        static_cast<int>(B.getLDA()), &beta,
+                                        C.getData(), static_cast<int>(C.getLDA())));
         } else {
             throw std::runtime_error(fmt::format("Unsupported data type"));
         }
+    }
+
+    template <typename T>
+    void nrm(DeviceMatrixView<T>& A) {
+        return;
     }
 
    private:
