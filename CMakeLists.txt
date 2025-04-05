@@ -66,6 +66,13 @@ target_include_directories(test_gemm_wrapper PRIVATE ${CUDAToolkit_INCLUDE_DIRS}
 target_link_libraries(test_gemm_wrapper PRIVATE fmt::fmt GTest::gtest_main CUDA::cudart CUDA::curand CUDA::cublas)
 add_test(NAME TestGemmWrapper COMMAND test_gemm_wrapper)
 
+# Test for NrmWrapper
+add_executable(test_nrm_wrapper tests/test_nrm_wrapper.cpp)
+# Explicitly add CUDA include directories for the C++ compiler
+target_include_directories(test_nrm_wrapper PRIVATE ${CUDAToolkit_INCLUDE_DIRS})
+target_link_libraries(test_nrm_wrapper PRIVATE fmt::fmt GTest::gtest_main CUDA::cudart CUDA::curand CUDA::cublas)
+add_test(NAME TestNrmWrapper COMMAND test_nrm_wrapper)
+
 
 # --- CUDA Check (Optional, informational) ---
 find_package(CUDAToolkit)

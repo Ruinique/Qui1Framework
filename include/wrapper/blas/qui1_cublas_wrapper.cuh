@@ -87,9 +87,20 @@ class CublasWrapper {
         }
     }
 
+    /**
+     * Only used by a entire matrix stored contiguously
+     */
     template <typename T>
-    void nrm(DeviceMatrixView<T>& A) {
-        return;
+    T nrm(const DeviceMatrixView<T>& A) {
+        auto x = A.getData();
+        auto n = A.getCols() * A.getRows();
+        T result = 0;
+        if constexpr (std::is_same_v<T, float>) {
+            CUBLAS_CHECK(cublasSnrm2_v2(handle_, n, x, 1, &result));
+        } else if constexpr (std::is_same_v<T, double>) {
+            CUBLAS_CHECK(cublasDnrm2_v2(handle_, n, x, 1, &result));
+        }
+        return result;
     }
 
    private:
