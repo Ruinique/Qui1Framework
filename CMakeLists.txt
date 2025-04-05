@@ -96,6 +96,14 @@ target_include_directories(test_cusolver_getrf PRIVATE ${CUDAToolkit_INCLUDE_DIR
 target_link_libraries(test_cusolver_getrf PRIVATE fmt::fmt GTest::gtest_main CUDA::cudart CUDA::cusolver)
 add_test(NAME TestCusolverGetrf COMMAND test_cusolver_getrf)
 
+# Test for common::print_device_info
+add_executable(test_device_info_print tests/test_device_info_print.cpp)
+# Explicitly add CUDA include directories for the C++ compiler
+target_include_directories(test_device_info_print PRIVATE ${CUDAToolkit_INCLUDE_DIRS})
+# Link against fmt, gtest, and CUDA runtime
+target_link_libraries(test_device_info_print PRIVATE fmt::fmt GTest::gtest_main CUDA::cudart)
+add_test(NAME TestDeviceInfoPrint COMMAND test_device_info_print)
+
 
 # --- CUDA Check (Optional, informational) ---
 find_package(CUDAToolkit)
