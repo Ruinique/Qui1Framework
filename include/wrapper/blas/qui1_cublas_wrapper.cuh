@@ -87,6 +87,52 @@ class CublasWrapper {
         }
     }
 
+    // Solves op(A) * X = alpha * B or X * op(A) = alpha * B
+    template <typename T>
+    void trsm(DeviceMatrixView<T>& A, DeviceMatrixView<T>& B,
+              cublasSideMode_t side = CUBLAS_SIDE_LEFT,
+              cublasFillMode_t uplo = CUBLAS_FILL_MODE_LOWER,
+              cublasOperation_t trans = CUBLAS_OP_N,
+              cublasDiagType_t diag = CUBLAS_DIAG_UNIT, T alpha =1) {
+        // Determine matrix dimensions based on 'side'
+        int m, n;
+        if (side == CUBLAS_SIDE_LEFT) {
+            // op(A) is m x m, B is m x n
+            m = static_cast<int>(A.getRows());  // A must be square
+            n = static_cast<int>(B.getCols());
+            if (A.getRows() != A.getCols() || A.getRows() != B.getRows()) {
+                throw std::invalid_argument(fmt::format(
+                    "Invalid dimensions for TRSM with SIDE_LEFT: A({}x{}), B({}x{})",
+                    A.getRows(), A.getCols(), B.getRows(), B.getCols()));
+            }
+        } else {  // CUBLAS_SIDE_RIGHT
+            // op(A) is n x n, B is m x n
+            m = static_cast<int>(B.getRows());
+            n = static_cast<int>(A.getRows());  // A must be square
+            if (A.getRows() != A.getCols() || A.getRows() != B.getCols()) {
+                throw std::invalid_argument(
+                    fmt::format("Invalid dimensions for TRSM with SIDE_RIGHT: "
+                                "A({}x{}), B({}x{})",
+                                A.getRows(), A.getCols(), B.getRows(), B.getCols()));
+            }
+        }
+
+        auto lda = static_cast<int>(A.getLDA());
+        auto ldb = static_cast<int>(B.getLDA());
+        auto A_ptr = A.getData();
+        auto B_ptr = B.getData();  // B is input and output
+
+        if constexpr (std::is_same_v<T, float>) {
+            CUBLAS_CHECK(cublasStrsm(handle_, side, uplo, trans, diag, m, n, &alpha,
+                                     A_ptr, lda, B_ptr, ldb));
+        } else if constexpr (std::is_same_v<T, double>) {
+            CUBLAS_CHECK(cublasDtrsm(handle_, side, uplo, trans, diag, m, n, &alpha,
+                                     A_ptr, lda, B_ptr, ldb));
+        } else {
+            throw std::runtime_error(fmt::format("Unsupported data type"));
+        }
+    }
+
     /**
      * Only used by a entire matrix stored contiguously
      */

@@ -73,6 +73,13 @@ target_include_directories(test_nrm_wrapper PRIVATE ${CUDAToolkit_INCLUDE_DIRS})
 target_link_libraries(test_nrm_wrapper PRIVATE fmt::fmt GTest::gtest_main CUDA::cudart CUDA::curand CUDA::cublas)
 add_test(NAME TestNrmWrapper COMMAND test_nrm_wrapper)
 
+# Test for TrsmWrapper
+add_executable(test_trsm_wrapper tests/test_trsm_wrapper.cpp)
+# Explicitly add CUDA include directories for the C++ compiler
+target_include_directories(test_trsm_wrapper PRIVATE ${CUDAToolkit_INCLUDE_DIRS})
+target_link_libraries(test_trsm_wrapper PRIVATE fmt::fmt GTest::gtest_main CUDA::cudart CUDA::curand CUDA::cublas)
+add_test(NAME TestTrsmWrapper COMMAND test_trsm_wrapper)
+
 # Test for MatrixHelper::extractTriangle
 add_executable(test_matrix_helper_extract_triangle tests/test_matrix_helper_extract_triangle.cu)
 # Explicitly add CUDA include directories for the C++ compiler
