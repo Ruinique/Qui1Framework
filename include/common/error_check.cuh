@@ -4,6 +4,7 @@
 #include <cublas_v2.h>
 #include <cuda_runtime.h>
 #include <curand.h>  // Include cuRAND header
+#include <cusolver_common.h> // Include cuSOLVER common header for status codes
 #include <stdio.h>   // For fprintf
 #include <stdlib.h>  // For exit, EXIT_FAILURE
 
@@ -39,6 +40,17 @@
                     err);                                                       \
             exit(EXIT_FAILURE);                                                 \
         }                                                                       \
+    }
+
+// cuSOLVER API error checking
+#define CUSOLVER_CHECK(call)                                                      \
+    {                                                                             \
+        cusolverStatus_t err = call;                                              \
+        if (err != CUSOLVER_STATUS_SUCCESS) {                                     \
+            fprintf(stderr, "cuSOLVER error at %s:%d - %d\n", __FILE__, __LINE__, \
+                    err);                                                         \
+            exit(EXIT_FAILURE);                                                   \
+        }                                                                         \
     }
 
 #endif
