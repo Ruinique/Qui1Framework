@@ -73,6 +73,22 @@ target_include_directories(test_nrm_wrapper PRIVATE ${CUDAToolkit_INCLUDE_DIRS})
 target_link_libraries(test_nrm_wrapper PRIVATE fmt::fmt GTest::gtest_main CUDA::cudart CUDA::curand CUDA::cublas)
 add_test(NAME TestNrmWrapper COMMAND test_nrm_wrapper)
 
+# Test for MatrixHelper::extractTriangle
+add_executable(test_matrix_helper_extract_triangle tests/test_matrix_helper_extract_triangle.cu)
+# Explicitly add CUDA include directories for the C++ compiler
+target_include_directories(test_matrix_helper_extract_triangle PRIVATE ${CUDAToolkit_INCLUDE_DIRS})
+# Link against fmt, gtest, and CUDA runtime (needed for cudaMemcpy and kernel launch)
+target_link_libraries(test_matrix_helper_extract_triangle PRIVATE fmt::fmt GTest::gtest_main CUDA::cudart)
+add_test(NAME TestMatrixHelperExtractTriangle COMMAND test_matrix_helper_extract_triangle)
+
+# Test for CusolverWrapper::getrf
+add_executable(test_cusolver_getrf tests/test_cusolver_getrf.cu)
+# Explicitly add CUDA include directories for the C++ compiler (though .cu might handle it)
+target_include_directories(test_cusolver_getrf PRIVATE ${CUDAToolkit_INCLUDE_DIRS})
+# Link against fmt, gtest, CUDA runtime, and cuSOLVER
+target_link_libraries(test_cusolver_getrf PRIVATE fmt::fmt GTest::gtest_main CUDA::cudart CUDA::cusolver)
+add_test(NAME TestCusolverGetrf COMMAND test_cusolver_getrf)
+
 
 # --- CUDA Check (Optional, informational) ---
 find_package(CUDAToolkit)

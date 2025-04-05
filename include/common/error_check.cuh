@@ -3,10 +3,10 @@
 
 #include <cublas_v2.h>
 #include <cuda_runtime.h>
-#include <curand.h>  // Include cuRAND header
-#include <cusolver_common.h> // Include cuSOLVER common header for status codes
-#include <stdio.h>   // For fprintf
-#include <stdlib.h>  // For exit, EXIT_FAILURE
+#include <curand.h>           // Include cuRAND header
+#include <cusolver_common.h>  // Include cuSOLVER common header for status codes
+#include <stdio.h>            // For fprintf
+#include <stdlib.h>           // For exit, EXIT_FAILURE
 
 // cuda API error checking
 #define CUDA_CHECK(call)                                                      \

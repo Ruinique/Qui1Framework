@@ -62,7 +62,7 @@ class CusolverWrapper {
      */
     template <typename T>
     void getrf(DeviceMatrixView<T>& A, int* devIpiv = nullptr) {
-        if (A.getLayout() != qui1::Layout::COL_MAJOR) {
+        if (A.getLayout() != qui1::Layout::COLUMN_MAJOR) {
             throw std::invalid_argument(
                 fmt::format("cusolverDnGetrf (with pivoting) currently requires "
                             "Column Major layout."));
@@ -127,9 +127,6 @@ class CusolverWrapper {
             CUDA_CHECK(cudaFree(devWork));
         }
         CUDA_CHECK(cudaFree(internal_devInfo));  // 释放内部 info
-        if (manage_ipiv_internally && temp_devIpiv) {
-            CUDA_CHECK(cudaFree(temp_devIpiv));  // 释放内部 ipiv (如果分配了)
-        }
 
         // 6. 如果分解失败，抛出异常
         if (hostInfo > 0) {

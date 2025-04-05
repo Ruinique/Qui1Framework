@@ -16,8 +16,44 @@
 #include "qui1_host_matrix.cuh"
 #include "qui1_matrix_base.cuh"
 #include "matrix/view/qui1_matrix_view_base.cuh" // 确保包含视图基类
+#include "qui1_device_matrix.cuh" // 需要 DeviceMatrix 作为返回类型和临时对象
 
 namespace qui1 {
+
+// 定义提取类型
+enum class TriangleType { UPPER, LOWER };
+
+#ifdef __CUDACC__
+// CUDA 核函数，用于提取上/下三角部分
+template <typename T>
+__global__ void extractTriangleKernel(const T* input_data, T* output_data,
+                                      size_t rows, size_t cols, size_t input_lda, size_t output_lda,
+                                      Layout layout, TriangleType triangle_type) {
+    // 计算全局线程索引 (i, j)
+    const auto j = blockIdx.x * blockDim.x + threadIdx.x; // Column index (使用 auto)
+    const auto i = blockIdx.y * blockDim.y + threadIdx.y; // Row index (使用 auto)
+
+    // 检查索引是否越界
+    if (i < rows && j < cols) {
+        // 根据布局计算输入和输出内存中的线性索引
+        const auto input_idx = (layout == Layout::ROW_MAJOR) ? (i * input_lda + j) : (j * input_lda + i); // 使用 auto 和 const
+        const auto output_idx = (layout == Layout::ROW_MAJOR) ? (i * output_lda + j) : (j * output_lda + i); // 使用 auto 和 const
+
+        // 判断当前元素是否属于目标三角区域
+        const bool condition = (triangle_type == TriangleType::UPPER) // 使用 const
+                             ? (j >= i) // 上三角条件 (列索引 >= 行索引)
+                             : (j <= i); // 下三角条件 (列索引 <= 行索引)
+
+        // 根据条件复制元素或置零
+        if (condition) {
+            output_data[output_idx] = input_data[input_idx];
+        } else {
+            output_data[output_idx] = static_cast<T>(0); // 非目标区域置零
+        }
+    }
+}
+#endif // __CUDACC__
+
 
 class MatrixHelper {
    public:
@@ -169,6 +205,115 @@ class MatrixHelper {
 
         CURAND_CHECK(curandDestroyGenerator(gen));
     }
+
+
+    /**
+     * @brief 从输入矩阵视图中提取上三角或下三角部分。
+     *
+     * @tparam T 矩阵元素类型。
+     * @param input_matrix 输入矩阵视图（可以是 HostMatrixView 或 DeviceMatrixView）。
+     * @param triangle_type 要提取的三角类型 (UPPER 或 LOWER)。
+     * @return 一个新的 DeviceMatrix，包含提取出的三角部分，其余元素为零。
+     *         如果输入是 HostMatrixView，数据会被复制到设备上进行处理。
+     */
+    template <typename T>
+    static DeviceMatrix<T> extractTriangle(
+        const MatrixViewBase<T>& input_matrix, // 接受基类引用，兼容 Host/Device 视图
+        TriangleType triangle_type)
+    {
+        const auto rows = input_matrix.getRows();
+        const auto cols = input_matrix.getCols();
+        const auto layout = input_matrix.getLayout();
+        const auto location = input_matrix.getLocation();
+        const auto input_lda = input_matrix.getLDA(); // 获取输入视图的 LDA
+
+        // 处理空矩阵情况
+        if (rows == 0 || cols == 0) {
+            return DeviceMatrix<T>(0, 0, layout); // 返回空的 DeviceMatrix
+        }
+
+        // 准备输入数据指针 (指向设备内存)
+        const T* device_input_ptr = nullptr;
+        size_t kernel_input_lda = 0; // 核函数实际读取数据的 LDA
+        DeviceMatrix<T> temp_device_input; // RAII 管理临时设备内存
+
+        if (location == Location::HOST) {
+            // 1. 输入在主机：创建临时设备矩阵并将数据从主机视图复制过去
+            temp_device_input = DeviceMatrix<T>(rows, cols, layout); // 分配设备内存
+            const T* host_src_ptr = input_matrix.getData(); // 主机视图的数据指针
+            const size_t temp_device_lda = temp_device_input.getLeadingDimension(); // 临时设备矩阵的 LDA
+
+            // 2. 使用 cudaMemcpy2D 处理可能非连续的主机视图到连续设备内存的复制
+            const size_t src_pitch = input_lda * sizeof(T); // 源 (主机) pitch
+            const size_t dst_pitch = temp_device_lda * sizeof(T); // 目标 (设备) pitch
+            size_t copy_width_bytes = 0;
+            size_t copy_height = 0;
+
+            // 根据布局确定复制的宽度和高度
+            if (layout == Layout::ROW_MAJOR) {
+                copy_width_bytes = cols * sizeof(T);
+                copy_height = rows;
+            } else { // COLUMN_MAJOR
+                copy_width_bytes = rows * sizeof(T); // 列主序时，宽度是行数
+                copy_height = cols; // 列主序时，高度是列数
+            }
+
+            CUDA_CHECK(cudaMemcpy2D(temp_device_input.getData(), dst_pitch, // 目标设备指针和 pitch
+                                    host_src_ptr, src_pitch,               // 源主机指针和 pitch
+                                    copy_width_bytes, copy_height,         // 复制尺寸
+                                    cudaMemcpyHostToDevice));              // 传输方向
+
+            device_input_ptr = temp_device_input.getData(); // 核函数使用临时设备矩阵的数据
+            kernel_input_lda = temp_device_lda; // 核函数读取数据的 LDA 是临时设备矩阵的 LDA
+        } else { // Location::DEVICE
+            // 输入已在设备：直接使用设备视图的数据指针和 LDA
+            device_input_ptr = input_matrix.getData();
+            kernel_input_lda = input_lda;
+        }
+
+        // 3. 分配输出设备矩阵
+        DeviceMatrix<T> output_matrix(rows, cols, layout);
+        T* device_output_ptr = output_matrix.getData();
+        const auto output_lda = output_matrix.getLeadingDimension(); // 输出矩阵的 LDA
+
+        // 4. 配置并启动 CUDA 核函数
+        // 使用 16x16 的线程块大小（可根据 GPU 架构调整）
+        constexpr int BLOCK_DIM_X = 16;
+        constexpr int BLOCK_DIM_Y = 16;
+        const dim3 threadsPerBlock(BLOCK_DIM_X, BLOCK_DIM_Y);
+        // 计算覆盖整个矩阵所需的线程块网格大小
+        const dim3 blocksPerGrid(
+            (cols + threadsPerBlock.x - 1) / threadsPerBlock.x,
+            (rows + threadsPerBlock.y - 1) / threadsPerBlock.y);
+
+#ifdef __CUDACC__
+        // 启动核函数
+        extractTriangleKernel<<<blocksPerGrid, threadsPerBlock>>>(
+            device_input_ptr,   // 输入设备数据
+            device_output_ptr,  // 输出设备数据
+            rows, cols,         // 矩阵维度
+            kernel_input_lda,   // 输入数据的 LDA
+            output_lda,         // 输出数据的 LDA
+            layout,             // 内存布局
+            triangle_type);     // 提取类型 (UPPER/LOWER)
+
+        // 检查核函数启动和执行过程中是否发生错误
+        CUDA_CHECK(cudaGetLastError());
+        // 可选：如果需要立即在主机端访问结果，可以取消注释下一行
+        // CUDA_CHECK(cudaDeviceSynchronize()); // 也应在 #ifdef 内
+#else
+        // 如果从非 nvcc 编译的代码调用，则抛出错误
+        throw std::runtime_error("extractTriangle can only be called from code compiled with nvcc.");
+        // 注意：如果此函数旨在在主机编译器编译时具有不同的行为，
+        // 则应在此处添加替代逻辑。
+#endif // __CUDACC__
+
+        // 5. 返回包含结果的设备矩阵
+        // 此 return 语句假定函数要么完成 CUDA 部分，
+        // 要么在从错误的上下文调用时抛出异常。
+        return output_matrix;
+    }
+
 
    private:
     // 辅助函数，根据类型调用相应的 curandGenerate 函数
