@@ -269,6 +269,8 @@ TEST(CusolverWrapperTest, GetrfFloatColMajorAndVerify) {
     applyPermutationRows(h_Ipiv, h_A_permuted); // Apply P to the copy
 
     // Compare P*A_orig (which is now h_A_permuted) with L*U
+    qui1::MatrixHelper::printMatrix(h_A_permuted, "P*A_orig");
+    qui1::MatrixHelper::printMatrix(h_LU_product, "L*U");
     EXPECT_TRUE(areMatricesClose(h_A_permuted, h_LU_product, 1e-5f));
 
 
